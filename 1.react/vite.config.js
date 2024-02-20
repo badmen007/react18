@@ -8,6 +8,7 @@ export default defineConfig({
     alias: {
       react: path.posix.resolve("src/react"),
       "react-dom": path.posix.resolve("src/react-dom"),
+      "react-dom-bindings": path.posix.resolve("react-dom-bindings"),
       "react-reconciler": path.posix.resolve("react-reconciler"),
       scheduler: path.posix.resolve("src/scheduler"),
       shared: path.posix.resolve("src/shared"),
