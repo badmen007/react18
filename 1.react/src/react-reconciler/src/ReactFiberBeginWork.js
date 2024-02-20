@@ -2,7 +2,7 @@ import { HostComponent, HostRoot, HostText } from "./ReactWorkTags";
 import { reconcileChildFibers, mountChildFibers } from "./ReactChildFiber";
 import logger, { indent } from "scheduler/logger";
 import { processUpdateQueue } from "./ReactFiberClassUpdateQueue";
-import { shouldSetTextContent } from "../../react-dom-bindings/src/ReactDOMHostConfig";
+import { shouldSetTextContent } from "../../react-dom-bindings/src/client/ReactDOMHostConfig";
 
 function pushHostRootContext(workInProgress) {
   const root = workInProgress.stateNode;

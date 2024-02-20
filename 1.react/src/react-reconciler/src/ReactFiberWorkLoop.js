@@ -70,4 +70,5 @@ function renderRootSync(root) {
 
 function performConcurrentWorkOnRoot(root) {
   renderRootSync(root);
+  console.log(root)
 }
