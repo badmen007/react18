@@ -2,6 +2,8 @@ import { scheduleCallback } from "scheduler";
 import { createWorkInProgress } from "./ReactFiber";
 import { beginWork } from "./ReactFiberBeginWork";
 import { completeWork } from './ReactFiberCompleteWork'
+import { MutationMask, NoFlags } from "./ReactFiberFlags";
+import { commitMutationEffectsOnFiber } from './ReactFiberCommitWork'
 
 const RootInProgress = 0;
 
@@ -23,7 +25,6 @@ export function scheduleUpdateOnFiber(root) {
 
 function prepareFreshStack(root) {
   workInProgress = createWorkInProgress(root.current, null);
-  console.log(workInProgress);
 }
 
 function workLoopSync() {
@@ -70,5 +71,20 @@ function renderRootSync(root) {
 
 function performConcurrentWorkOnRoot(root) {
   renderRootSync(root);
-  console.log(root)
+  // 开始进入提交阶段
+  // 最新构建出来的fiber树
+  const finishedWork = root.current.alternate
+  root.finishedWork = finishedWork
+  commitRoot(root)
+}
+
+function commitRoot(root) {
+  const { finishedWork } = root
+  const subtreeHasEffects = (finishedWork.subtreeFlags & MutationMask) !== NoFlags
+  const rootHasEffect = (finishedWork.flags & MutationMask) !== NoFlags
+  // 表示有插入或者更新
+  if (subtreeHasEffects || rootHasEffect) {
+    commitMutationEffectsOnFiber(finishedWork, root)
+  }
+  root.current = finishedWork
 }
