@@ -1,8 +1,9 @@
-import { HostComponent, HostRoot, HostText } from "./ReactWorkTags";
+import { FunctionComponent, HostComponent, HostRoot, HostText, IndeterminateComponent } from "./ReactWorkTags";
 import { reconcileChildFibers, mountChildFibers } from "./ReactChildFiber";
 import logger, { indent } from "scheduler/logger";
 import { processUpdateQueue } from "./ReactFiberClassUpdateQueue";
-import { shouldSetTextContent } from "../../react-dom-bindings/src/client/ReactDOMHostConfig";
+import { shouldSetTextContent } from "react-dom-bindings/src/client/ReactDOMHostConfig";
+import { renderWithHooks } from './ReactFiberHooks'
 
 function pushHostRootContext(workInProgress) {
   const root = workInProgress.stateNode;
@@ -46,10 +47,26 @@ function updateHostText(current, workInProgress) {
   return null;
 }
 
+/**
+ * 函数组件
+ * @param {*} current 
+ * @param {*} workInProgress 
+ * @param {*} Component 
+ */
+export function mountIndeterminateComponent(current, workInProgress, Component) {
+  const props = workInProgress.pendingProps
+  const value = renderWithHooks(current, workInProgress, Component, props)
+  workInProgress.tag = FunctionComponent
+  reconcileChildren(current, workInProgress, value)
+  return workInProgress.child
+}
+
 export function beginWork(current, workInProgress) {
   logger(" ".repeat(indent.number) + "beginWork", workInProgress);
   indent.number += 2
   switch (workInProgress.tag) {
+    case IndeterminateComponent: 
+      return mountIndeterminateComponent(current, workInProgress, workInProgress.type)
     case HostRoot:
       return updateHostRoot(current, workInProgress);
     case HostComponent:
