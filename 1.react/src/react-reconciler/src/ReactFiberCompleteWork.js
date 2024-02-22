@@ -36,8 +36,8 @@ function appendAllChildren(parent, workInProgress) {
  * @param {*} workInProgress 新的fiber
  */
 export function completeWork(current, workInProgress) {
-  indent.number -= 2;
-  logger(" ".repeat(indent.number) + "completeWork", workInProgress);
+  // indent.number -= 2;
+  // logger(" ".repeat(indent.number) + "completeWork", workInProgress);
   const newProps = workInProgress.pendingProps;
   switch (workInProgress.tag) {
     case HostRoot:

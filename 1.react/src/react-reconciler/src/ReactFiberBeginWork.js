@@ -62,8 +62,8 @@ export function mountIndeterminateComponent(current, workInProgress, Component) 
 }
 
 export function beginWork(current, workInProgress) {
-  logger(" ".repeat(indent.number) + "beginWork", workInProgress);
-  indent.number += 2
+  // logger(" ".repeat(indent.number) + "beginWork", workInProgress);
+  // indent.number += 2
   switch (workInProgress.tag) {
     case IndeterminateComponent: 
       return mountIndeterminateComponent(current, workInProgress, workInProgress.type)

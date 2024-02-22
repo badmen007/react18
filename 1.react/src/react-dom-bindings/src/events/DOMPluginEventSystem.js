@@ -7,7 +7,10 @@ import {
   addEventBubbleListener,
 } from "./EventListener";
 import { getEventTarget } from "./getEventTarget";
-import { HostComponent } from "react-reconciler/src/ReactWorkTags";
+import {
+  FunctionComponent,
+  HostComponent,
+} from "react-reconciler/src/ReactWorkTags";
 import getListener from "./getListener";
 
 SimpleEventPlugin.registerEvents();
@@ -90,6 +93,7 @@ function dispatchEventForPlugins(
 ) {
   const nativeEventTarget = getEventTarget(nativeEvent);
   const dispatchQueue = [];
+  // 提取
   extractEvents(
     dispatchQueue,
     domEventName,
@@ -99,7 +103,47 @@ function dispatchEventForPlugins(
     eventSystemFlags,
     targetContainer
   );
-  console.log(dispatchQueue);
+  // 处理
+  processDispatchQueue(dispatchQueue, eventSystemFlags);
+}
+
+function processDispatchQueue(dispatchQueue, eventSystemFlags) {
+  // 判断是否是捕获
+  const isCapturePhase = (eventSystemFlags & IS_CAPTURE_PHASE) !== 0;
+  for (let i = 0; i < dispatchQueue.length; i++) {
+    const { event, listeners } = dispatchQueue[i];
+    processDispatchQueueItemsInOrder(event, listeners, isCapturePhase);
+  }
+}
+
+function executeDispatch(event, listener, currentTarget) {
+  // event currentTarget 当前事件源会随着事件的不断执行是不断变化的
+  event.currentTarget = currentTarget;
+  listener(event);
+}
+
+function processDispatchQueueItemsInOrder(
+  event,
+  dispatchListeners,
+  isCapturePhase
+) {
+  if (isCapturePhase) {
+    for (let i = dispatchListeners.length - 1; i >= 0; i--) {
+      const { listener, currentTarget } = dispatchListeners[i];
+      if (event.isPropagationStopped()) {
+        return;
+      }
+      executeDispatch(event, listener, currentTarget);
+    }
+  } else {
+    for (let i = 0; i < dispatchListeners.length; i++) {
+      const { listener, currentTarget } = dispatchListeners[i];
+      if (event.isPropagationStopped()) {
+        return;
+      }
+      executeDispatch(event, listener, currentTarget);
+    }
+  }
 }
 
 function extractEvents(
@@ -137,10 +181,14 @@ export function accumulateSinglePhaseListeners(
     if (tag === HostComponent && stateNode !== null) {
       const listener = getListener(instance, reactEventName);
       if (listener) {
-        listeners.push(listener);
+        listeners.push(createDispatchListener(instance, listener, stateNode));
       }
     }
     instance = instance.return;
   }
   return listeners;
+}
+
+function createDispatchListener(instance, listener, currentTarget) {
+  return { instance, listener, currentTarget };
 }

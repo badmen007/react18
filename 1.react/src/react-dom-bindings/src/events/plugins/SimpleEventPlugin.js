@@ -4,6 +4,7 @@ import {
 } from "../DOMEventProperties";
 import { IS_CAPTURE_PHASE } from "../EventSystemFlags";
 import { accumulateSinglePhaseListeners } from "../DOMPluginEventSystem";
+import { SyntheticMouseEvent } from "../SyntheticEvent";
 
 function extractEvents(
   dispatchQueue,
@@ -15,14 +16,33 @@ function extractEvents(
   targetContainer
 ) {
   const isCapturePhase = (eventSystemFlags & IS_CAPTURE_PHASE) !== 0;
+  // click -> onClick
   const reactName = topLevelEventsToReactNames.get(domEventName);
-  const listener = accumulateSinglePhaseListeners(
+  let SyntheticEventCtor;
+  switch (domEventName) {
+    case "click":
+      SyntheticEventCtor = SyntheticMouseEvent;
+      break;
+    default:
+      break;
+  }
+  const listeners = accumulateSinglePhaseListeners(
     targetInstance,
     reactName,
     nativeEvent.type,
     isCapturePhase
   );
-  console.log(listener, "listener");
+  if (listeners.length > 0) {
+    // 创建合成事件
+    const event = new SyntheticEventCtor(
+      reactName,
+      domEventName,
+      null,
+      nativeEvent,
+      nativeEventTarget
+    );
+    dispatchQueue.push({ event, listeners });
+  }
 }
 
 export { registerSimpleEvents as registerEvents, extractEvents };
