@@ -1,21 +1,14 @@
+import * as React from 'react'
 import { createRoot } from "react-dom/client";
 
+function reducer(state, action) {
+  if (action.type === 'add') return state + 1
+  return state
+}
+
 function FunctionComponent() {
-  return (
-    <h1
-      onClick={() => console.log(`父冒泡`)}
-      onClickCapture={() => console.log(`父捕获`)}
-    >
-      hello{" "}
-      <span
-        style={{ color: "red" }}
-        onClick={() => console.log(`子冒泡`)}
-        onClickCapture={() => console.log(`子捕获`)}
-      >
-        world
-      </span>
-    </h1>
-  );
+  const [number, setNumber ] = React.useReducer(reducer, 0)
+  return <button onClick={() => setNumber({type: 'add'})}>{number}按钮</button>;
 }
 
 const element = <FunctionComponent />
