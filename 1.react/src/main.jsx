@@ -2,21 +2,18 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 
 function reducer(state, action) {
-  if (action.type === "add") return state + action.payload;
+  if (action.type === "add") return state + 1;
   return state;
 }
 
 function FunctionComponent() {
-  debugger
-  const [number, setNumber] = React.useReducer(reducer, 0);
-  console.log(number, "~~~");
+  debugger;
+  // 如果新状态和老状态一样的话 不重新渲染
+  const [number, setNumber] = React.useState(0);
   return (
     <button
-      id={Date.now()}
       onClick={() => {
-        setNumber({ type: "add", payload: 1 });
-        setNumber({ type: "add", payload: 2 });
-        setNumber({ type: "add", payload: 3 });
+        setNumber(number);
       }}
     >
       {number}
