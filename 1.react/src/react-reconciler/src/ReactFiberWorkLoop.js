@@ -5,6 +5,7 @@ import { completeWork } from "./ReactFiberCompleteWork";
 import { MutationMask, NoFlags, Placement, Update } from "./ReactFiberFlags";
 import { commitMutationEffectsOnFiber } from "./ReactFiberCommitWork";
 import { HostComponent, HostRoot, HostText } from "./ReactWorkTags";
+import { finishQueueConcurrentUpdates } from "./ReactFiberConcurrentUpdates";
 
 const RootInProgress = 0;
 
@@ -14,10 +15,9 @@ let workInProgressRootExitStatus = RootInProgress;
 let workInProgress = null;
 
 function ensureRootIsScheduled(root) {
-  const newCallbackNode = scheduleCallback(
-    performConcurrentWorkOnRoot.bind(null, root)
-  );
-  root.callbackNode = newCallbackNode;
+  if (workInProgressRoot) return
+  workInProgressRoot = root
+  scheduleCallback(performConcurrentWorkOnRoot.bind(null, root));
 }
 
 export function scheduleUpdateOnFiber(root) {
@@ -26,6 +26,7 @@ export function scheduleUpdateOnFiber(root) {
 
 function prepareFreshStack(root) {
   workInProgress = createWorkInProgress(root.current, null);
+  finishQueueConcurrentUpdates();
 }
 
 function workLoopSync() {
@@ -64,9 +65,7 @@ function completeUnitOfWork(unitOfWork) {
 }
 
 function renderRootSync(root) {
-  if (workInProgressRoot !== root) {
-    prepareFreshStack(root);
-  }
+  prepareFreshStack(root);
   workLoopSync();
 }
 
@@ -77,6 +76,7 @@ function performConcurrentWorkOnRoot(root) {
   const finishedWork = root.current.alternate;
   root.finishedWork = finishedWork;
   commitRoot(root);
+  workInProgressRoot = null
 }
 
 function commitRoot(root) {
@@ -110,12 +110,12 @@ function printFinishedWork(fiber) {
 
 function getFlags(flags) {
   if (flags === Placement) {
-    return '插入'
+    return "插入";
   }
   if (flags === Update) {
     return "更新";
   }
-  return flags
+  return flags;
 }
 
 function getTag(tag) {

@@ -1,8 +1,14 @@
-import { MutationMask, Placement } from "./ReactFiberFlags";
-import { FunctionComponent, HostComponent, HostRoot, HostText } from "./ReactWorkTags";
+import { MutationMask, Placement, Update } from "./ReactFiberFlags";
+import {
+  FunctionComponent,
+  HostComponent,
+  HostRoot,
+  HostText,
+} from "./ReactWorkTags";
 import {
   appendChild,
   insertBefore,
+  commitUpdate,
 } from "react-dom-bindings/src/client/ReactDOMHostConfig";
 
 function recursivelyTraverseMutationEffects(root, parentFiber) {
@@ -67,27 +73,27 @@ function insertOrAppendPlacementNode(node, before, parent) {
 
 /**
  * 找到插入的锚点
- * @param {*} fiber 
+ * @param {*} fiber
  */
 function getHostSibling(fiber) {
-  let node = fiber
-  siblings: while(true) {
-    while(node.sibling == null) {
-      if (node.return == null || isHostParent(node.return)){ 
-        return null
+  let node = fiber;
+  siblings: while (true) {
+    while (node.sibling == null) {
+      if (node.return == null || isHostParent(node.return)) {
+        return null;
       }
-      node = node.return
+      node = node.return;
     }
-    node = node.sibling
-    while(node.tag !== HostComponent && node.tag !== HostText) {
+    node = node.sibling;
+    while (node.tag !== HostComponent && node.tag !== HostText) {
       if (node.flags & Placement) {
-        continue siblings
+        continue siblings;
       } else {
-        node = node.child
+        node = node.child;
       }
     }
     if (!(node.flags & Placement)) {
-      return node.stateNode
+      return node.stateNode;
     }
   }
 }
@@ -108,7 +114,7 @@ function commitPlacement(finishedWork) {
     case HostComponent: {
       const parent = parentFiber.stateNode;
       const before = getHostSibling(finishedWork);
-      insertOrAppendPlacementNode(finishedWork, before,parent);
+      insertOrAppendPlacementNode(finishedWork, before, parent);
     }
     default:
       break;
@@ -121,15 +127,42 @@ function commitPlacement(finishedWork) {
  * @param {*} root
  */
 export function commitMutationEffectsOnFiber(finishedWork, root) {
+  const current = finishedWork.alternate;
+  const flags = finishedWork.flags;
   switch (finishedWork.tag) {
     case FunctionComponent:
     case HostRoot:
-    case HostComponent:
     case HostText:
       // 遍历子节点 处理他们节点上的副作用
       recursivelyTraverseMutationEffects(root, finishedWork);
       commitReconciliationEffects(finishedWork);
       break;
+    case HostComponent: {
+      // 遍历子节点 处理他们节点上的副作用
+      recursivelyTraverseMutationEffects(root, finishedWork);
+      commitReconciliationEffects(finishedWork);
+      // 处理DOM更新
+      if (flags & Update) {
+        const instance = finishedWork.stateNode;
+        if (instance !== null) {
+          const newProps = finishedWork.memoizedProps;
+          const oldProps = current !== null ? current.memoizedProps : newProps;
+          const type = finishedWork.type;
+          const uploadPayload = finishedWork.updateQueue;
+          finishedWork.updateQueue = null;
+          if (uploadPayload) {
+            commitUpdate(
+              instance,
+              uploadPayload,
+              type,
+              oldProps,
+              newProps,
+            );
+          }
+        }
+      }
+      break;
+    }
     default:
       break;
   }

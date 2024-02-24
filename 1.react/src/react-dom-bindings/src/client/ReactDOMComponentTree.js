@@ -7,7 +7,10 @@ const internalPropsKey = '__reactProps$' + randomKey
  */
 export function getClosestInstanceFromNode(targetNode) {
   const targetInstance = targetNode[internalInstanceKey]
-  return targetInstance
+  if (targetInstance) {
+    return targetInstance
+  }
+  return null
 }
 
 export function precacheFiberNode(hostInst, node) {

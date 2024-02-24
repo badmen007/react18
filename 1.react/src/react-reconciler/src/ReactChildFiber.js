@@ -1,10 +1,36 @@
 import { REACT_ELEMENT_TYPE } from "shared/ReactSymbols";
-import { createFiberFromElement, createFiberFromText } from "./ReactFiber";
+import { createFiberFromElement, createFiberFromText, createWorkInProgress } from "./ReactFiber";
 import { Placement } from "./ReactFiberFlags";
 import isArray from 'shared/isArray'
 
 function createChildReconciler(shouldTrackSideEffects) {
-  function reconcileSingleElement(returnFiber, currentFirstFiber, element) {
+
+  /**
+   * 基于老的fiber创建新的fiber
+   * @param {*} fiber 
+   * @param {*} pendingProps 
+   * @returns 
+   */
+  function useFiber(fiber, pendingProps) {
+    const clone = createWorkInProgress(fiber, pendingProps)
+    clone.index = 0
+    clone.sibling = null
+    return clone
+  }
+
+  function reconcileSingleElement(returnFiber, currentFirstChild, element) {
+    const key = element.key
+    let child = currentFirstChild
+    while(child !== null) {
+      if (child.key == key) {
+        if (child.type == element.type) {
+          const existing = useFiber(child, element.props)
+          existing.return = returnFiber
+          return existing
+        }
+      }
+      child = child.sibling
+    }
     // 没有老的节点
     const created = createFiberFromElement(element);
     created.return = returnFiber;
@@ -45,7 +71,7 @@ function createChildReconciler(shouldTrackSideEffects) {
       newFiber.flags |= Placement;
     }
   }
-  function reconcileChildrenArray(returnFiber, currentFirstFiber, newChildren) {
+  function reconcileChildrenArray(returnFiber, currentFirstChild, newChildren) {
     let resultingFirstChild = null;
     let previousNewFiber = null;
     let newIndex = 0;
@@ -63,19 +89,19 @@ function createChildReconciler(shouldTrackSideEffects) {
     }
     return resultingFirstChild;
   }
-  function reconcileChildFibers(returnFiber, currentFirstFiber, newChild) {
+  function reconcileChildFibers(returnFiber, currentFirstChild, newChild) {
     if (typeof newChild === "object" && newChild !== null) {
       switch (newChild.$$typeof) {
         case REACT_ELEMENT_TYPE:
           return PlaceSingleChild(
-            reconcileSingleElement(returnFiber, currentFirstFiber, newChild)
+            reconcileSingleElement(returnFiber, currentFirstChild, newChild)
           );
         default:
           break;
       }
     }
     if (isArray(newChild)) {
-      return reconcileChildrenArray(returnFiber, currentFirstFiber, newChild);
+      return reconcileChildrenArray(returnFiber, currentFirstChild, newChild);
     }
     return null;
   }

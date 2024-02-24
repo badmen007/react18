@@ -6,5 +6,4 @@ export function setValueForStyles(node, styles) {
       style[styleName] = styleValue
     }
   }
-
 }
