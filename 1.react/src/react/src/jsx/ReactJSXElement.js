@@ -6,9 +6,6 @@ const RESERVED_PROPS = {
   __self: true,
   __source: true
 }
-function hasValidKey(config) {
-  return config.key !== undefined
-}
 function hasValidRef(config) {
   return config.ref !== undefined
 }
@@ -21,15 +18,15 @@ function ReactElement(type, key, ref, props) {
     props // 属性
   }
 }
-export function jsxDEV(type, config) {
+export function jsxDEV(type, config, maybeKey) {
   // 之前React.createElement的时候儿子需要自己处理 
   // 现在不用自己处理了jsxDEV
   let propName;
   const props = {} // 属性对象
   let ref = null;
   let key = null; // 引入 后面可以通过这实现获取真实DOM的需求
-  if (hasValidKey(config)) {
-    key = config.key
+  if (typeof maybeKey !== 'undefined') {
+    key = maybeKey
   }
   if (hasValidRef(config)) {
     ref = config.ref

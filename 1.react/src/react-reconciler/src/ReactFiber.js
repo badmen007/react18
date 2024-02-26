@@ -21,6 +21,9 @@ function FiberNode(tag, pendingProps, key) {
   this.subtreeFlags = NoFlags;
 
   this.alternate = null;
+
+  // 存放将要删除的节点
+  this.deletions = null
 }
 
 function createFiber(tag, pendingProps, key) {

@@ -7,17 +7,25 @@ function reducer(state, action) {
 }
 
 function FunctionComponent() {
-  debugger;
-  // 如果新状态和老状态一样的话 不重新渲染
   const [number, setNumber] = React.useState(0);
-  return (
-    <button
-      onClick={() => {
-        setNumber(number);
-      }}
-    >
-      {number}
-    </button>
+  return number === 0 ? (
+    <ul key="container" onClick={() => setNumber(number + 1)}>
+      <li key="A" id="A">
+        A
+      </li>
+      <li key="B" id="B">
+        B
+      </li>
+      <li key="C" id="C">
+        C
+      </li>
+    </ul>
+  ) : (
+    <ul key="container" onClick={() => setNumber(number + 1)}>
+      <li key="B" id="B2">
+        B2
+      </li>
+    </ul>
   );
 }
 

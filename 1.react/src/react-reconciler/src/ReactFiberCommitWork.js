@@ -9,9 +9,76 @@ import {
   appendChild,
   insertBefore,
   commitUpdate,
+  removeChild,
 } from "react-dom-bindings/src/client/ReactDOMHostConfig";
 
+let hostParent = null;
+
+function commitDeletionEffects(root, returnFiber, deletedFiber) {
+  let parent = returnFiber;
+  // 这里写标签 是break可以跳出的是switch循环而不是while
+  findParent: while (parent !== null) {
+    switch (parent.tag) {
+      case HostComponent: {
+        hostParent = parent.stateNode;
+        break findParent;
+      }
+      case HostRoot: {
+        hostParent = parent.stateNode.containerInfo;
+        break findParent;
+      }
+    }
+    parent = parent.return;
+  }
+  commitDeletionEffectsOnFiber(root, returnFiber, deletedFiber);
+  hostParent = null;
+}
+
+function commitDeletionEffectsOnFiber(
+  finishedWork,
+  nearestMountedAncestor,
+  deletedFiber
+) {
+  switch (deletedFiber.tag) {
+    case HostComponent:
+    case HostText: {
+      // 先删除子节点 再删除自己 递归
+      recursivelyTraverseDeletionEffects(
+        finishedWork,
+        nearestMountedAncestor,
+        deletedFiber
+      );
+      if (hostParent !== null) {
+        removeChild(hostParent, deletedFiber.stateNode);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+function recursivelyTraverseDeletionEffects(
+  finishedRoot,
+  nearestMountedAncestor,
+  parent
+) {
+  let child = parent.child;
+  while (child !== null) {
+    commitDeletionEffectsOnFiber(finishedRoot, nearestMountedAncestor, child);
+    child = child.sibling;
+  }
+}
+
 function recursivelyTraverseMutationEffects(root, parentFiber) {
+  // 先处理删除
+  const deletions = parentFiber.deletions;
+  if (deletions !== null) {
+    for (let i = 0; i < deletions.length; i++) {
+      const childToDelete = deletions[i];
+      commitDeletionEffects(root, parentFiber, childToDelete);
+    }
+  }
   if (parentFiber.subtreeFlags & MutationMask) {
     let { child } = parentFiber;
     while (child !== null) {
@@ -151,13 +218,7 @@ export function commitMutationEffectsOnFiber(finishedWork, root) {
           const uploadPayload = finishedWork.updateQueue;
           finishedWork.updateQueue = null;
           if (uploadPayload) {
-            commitUpdate(
-              instance,
-              uploadPayload,
-              type,
-              oldProps,
-              newProps,
-            );
+            commitUpdate(instance, uploadPayload, type, oldProps, newProps);
           }
         }
       }
