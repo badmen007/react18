@@ -14,6 +14,7 @@ import {
   commitMutationEffectsOnFiber,
   commitPassiveUnmountEffects,
   commitPassiveMountEffects,
+  commitLayoutEffect,
 } from "./ReactFiberCommitWork";
 import {
   FunctionComponent,
@@ -120,13 +121,17 @@ function commitRoot(root) {
     }
   }
   //printFinishedWork(finishedWork);
-  console.log("~~~~~~~~~~~~~~~~~~~~~");
+  console.log("开始commit~~~~~~~~~~~~~~~~~~~~~");
   const subtreeHasEffects =
     (finishedWork.subtreeFlags & MutationMask) !== NoFlags;
   const rootHasEffect = (finishedWork.flags & MutationMask) !== NoFlags;
   // 表示有插入或者更新
   if (subtreeHasEffects || rootHasEffect) {
+    // dom变更之后 ui渲染之前
+    console.log("DOM变更commitMutationEffectsOnFiber~~~~~~");
     commitMutationEffectsOnFiber(finishedWork, root);
+    console.log("DOM变更后执行commitLayoutEffect~~~~~~");
+    commitLayoutEffect(finishedWork, root);
     if (rootDoesHavePassiveEffect) {
       rootDoesHavePassiveEffect = false;
       rootWithPendingPassiveEffects = root;

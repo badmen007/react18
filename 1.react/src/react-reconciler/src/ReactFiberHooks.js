@@ -1,10 +1,14 @@
 import ReactSharedInternals from "shared/ReactSharedInternals";
 import { scheduleUpdateOnFiber } from "./ReactFiberWorkLoop";
 import { enqueueConcurrentHookUpdate } from "./ReactFiberConcurrentUpdates";
-import { Passive as PassiveEffect } from "./ReactFiberFlags";
+import {
+  Passive as PassiveEffect,
+  Update as UpdateEffect,
+} from "./ReactFiberFlags";
 import {
   HasEffect as HookHasEffect,
   Passive as HookPassive,
+  Layout as HookLayout,
 } from "./ReactHookEffectTags";
 
 const { ReactCurrentDispatcher } = ReactSharedInternals;
@@ -16,12 +20,22 @@ const HooksDispatcherOnMount = {
   useReducer: mountReducer,
   useState: mountState,
   useEffect: mountEffect,
+  useLayoutEffect: mountLayoutEffect,
 };
 const HooksDispatcherOnUpdate = {
   useReducer: updateReducer,
   useState: updateState,
   useEffect: updateEffect,
+  useLayoutEffect: updateLayoutEffect,
 };
+
+function updateLayoutEffect(create, deps) {
+  return updateEffectImpl(UpdateEffect, HookLayout, create, deps);
+}
+
+function mountLayoutEffect(create, deps) {
+  return mountEffectImpl(UpdateEffect, HookLayout, create, deps);
+}
 
 function updateEffect(create, deps) {
   return updateEffectImpl(PassiveEffect, HookPassive, create, deps);
@@ -48,7 +62,7 @@ function updateEffectImpl(fiberFlags, hookFlags, create, deps) {
     HookHasEffect | hookFlags,
     create,
     destroy,
-    nextDeps
+    nextDeps,
   );
 }
 function areHookInputsEqual(nextDeps, prevDeps) {
@@ -74,7 +88,7 @@ function mountEffectImpl(fiberFlags, hookFlags, create, deps) {
     HookHasEffect | hookFlags,
     create,
     undefined,
-    nextDeps
+    nextDeps,
   );
 }
 function pushEffect(tag, create, destroy, deps) {
@@ -133,7 +147,7 @@ function mountState(initialState) {
   const dispatch = (queue.dispatch = dispatchSetState.bind(
     null,
     currentlyRenderingFiber,
-    queue
+    queue,
   ));
   return [hook.memoizedState, dispatch];
 }
@@ -214,7 +228,7 @@ function mountReducer(reducer, initialArg) {
   const dispatch = (queue.dispatch = dispatchReducerAction.bind(
     null,
     currentlyRenderingFiber,
-    queue
+    queue,
   ));
   return [hook.memoizedState, dispatch];
 }
