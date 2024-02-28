@@ -1,6 +1,11 @@
 import ReactSharedInternals from "shared/ReactSharedInternals";
 import { scheduleUpdateOnFiber } from "./ReactFiberWorkLoop";
 import { enqueueConcurrentHookUpdate } from "./ReactFiberConcurrentUpdates";
+import { Passive as PassiveEffect } from "./ReactFiberFlags";
+import {
+  HasEffect as HookHasEffect,
+  Passive as HookPassive,
+} from "./ReactHookEffectTags";
 
 const { ReactCurrentDispatcher } = ReactSharedInternals;
 let workInProgressHook = null;
@@ -10,16 +15,107 @@ let currentHook = null;
 const HooksDispatcherOnMount = {
   useReducer: mountReducer,
   useState: mountState,
+  useEffect: mountEffect,
 };
 const HooksDispatcherOnUpdate = {
   useReducer: updateReducer,
   useState: updateState,
+  useEffect: updateEffect,
 };
+
+function updateEffect(create, deps) {
+  return updateEffectImpl(PassiveEffect, HookPassive, create, deps);
+}
+function updateEffectImpl(fiberFlags, hookFlags, create, deps) {
+  const hook = updateWorkInProgressHook();
+  const nextDeps = deps === undefined ? null : deps;
+  let destroy;
+  if (currentHook !== null) {
+    // 老的effect
+    const prevEffect = currentHook.memoizedState;
+    destroy = prevEffect.destroy;
+    if (nextDeps !== null) {
+      const prevDeps = prevEffect.deps;
+      // 用新数组和老数组进行对比 一样就不执行create
+      if (areHookInputsEqual(nextDeps, prevDeps)) {
+        hook.memoizedState = pushEffect(hookFlags, create, destroy, nextDeps);
+        return;
+      }
+    }
+  }
+  currentlyRenderingFiber.flags |= fiberFlags;
+  hook.memoizedState = pushEffect(
+    HookHasEffect | hookFlags,
+    create,
+    destroy,
+    nextDeps
+  );
+}
+function areHookInputsEqual(nextDeps, prevDeps) {
+  if (prevDeps == null) {
+    return null;
+  }
+  for (let i = 0; i < prevDeps.length && i < nextDeps.length; i++) {
+    if (Object.is(nextDeps[i], prevDeps[i])) {
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+function mountEffect(create, deps) {
+  return mountEffectImpl(PassiveEffect, HookPassive, create, deps);
+}
+function mountEffectImpl(fiberFlags, hookFlags, create, deps) {
+  const hook = mountWorkInProgressHook();
+  const nextDeps = deps === undefined ? null : deps;
+  currentlyRenderingFiber.flags |= fiberFlags;
+  hook.memoizedState = pushEffect(
+    HookHasEffect | hookFlags,
+    create,
+    undefined,
+    nextDeps
+  );
+}
+function pushEffect(tag, create, destroy, deps) {
+  const effect = {
+    tag,
+    create,
+    destroy,
+    deps,
+    next: null,
+  };
+  // 构建循环链表
+  let componentUpdateQueue = currentlyRenderingFiber.updateQueue;
+  if (componentUpdateQueue == null) {
+    componentUpdateQueue = createFunctionComponentUpdateQueue();
+    currentlyRenderingFiber.updateQueue = componentUpdateQueue;
+    // 只有一个的时候 自己指向自己
+    componentUpdateQueue.lastEffect = effect.next = effect;
+  } else {
+    // 这个下面是不是可以不要啊
+    const lastEffect = componentUpdateQueue.lastEffect;
+    if (lastEffect == null) {
+      componentUpdateQueue.lastEffect = effect.next = effect;
+    } else {
+      const firstEffect = lastEffect.next;
+      lastEffect.next = effect;
+      effect.next = firstEffect;
+      componentUpdateQueue.lastEffect = effect;
+    }
+  }
+  return effect;
+}
+function createFunctionComponentUpdateQueue() {
+  return {
+    lastEffect: null,
+  };
+}
 function baseStateReducer(state, action) {
   return typeof action === "function" ? action(state) : action;
 }
 
-function updateState(initialState) {
+function updateState() {
   return updateReducer(baseStateReducer);
 }
 
@@ -161,6 +257,8 @@ function mountWorkInProgressHook() {
  */
 export function renderWithHooks(current, workInProgress, Component, props) {
   currentlyRenderingFiber = workInProgress;
+  // 每次清除updateQueue
+  currentlyRenderingFiber.updateQueue = null;
   if (current !== null && current.memoizedState !== null) {
     ReactCurrentDispatcher.current = HooksDispatcherOnUpdate;
   } else {

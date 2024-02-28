@@ -6,10 +6,15 @@ import {
   ChildDeletion,
   MutationMask,
   NoFlags,
+  Passive,
   Placement,
   Update,
 } from "./ReactFiberFlags";
-import { commitMutationEffectsOnFiber } from "./ReactFiberCommitWork";
+import {
+  commitMutationEffectsOnFiber,
+  commitPassiveUnmountEffects,
+  commitPassiveMountEffects,
+} from "./ReactFiberCommitWork";
 import {
   FunctionComponent,
   HostComponent,
@@ -24,6 +29,8 @@ let workInProgressRoot = null;
 let workInProgressRootExitStatus = RootInProgress;
 
 let workInProgress = null;
+let rootDoesHavePassiveEffect = false; // 有没有副作用
+let rootWithPendingPassiveEffects = null; // 具有useEffect副作用的根节点 FiberRootNode
 
 function ensureRootIsScheduled(root) {
   if (workInProgressRoot) return;
@@ -90,15 +97,40 @@ function performConcurrentWorkOnRoot(root) {
   workInProgressRoot = null;
 }
 
+function flushPassiveEffect() {
+  if (rootWithPendingPassiveEffects !== null) {
+    const root = rootWithPendingPassiveEffects;
+    // 执行卸载副作用
+    commitPassiveUnmountEffects(root.current);
+    // 执行挂载副作用
+    commitPassiveMountEffects(root, root.current);
+  }
+}
+
 function commitRoot(root) {
   const { finishedWork } = root;
-  printFinishedWork(finishedWork);
+  if (
+    (finishedWork.subtreeFlags & Passive) !== NoFlags ||
+    (finishedWork.flags & Passive) !== NoFlags
+  ) {
+    if (!rootDoesHavePassiveEffect) {
+      rootDoesHavePassiveEffect = true;
+      // 这是个宏任务
+      scheduleCallback(flushPassiveEffect);
+    }
+  }
+  //printFinishedWork(finishedWork);
+  console.log("~~~~~~~~~~~~~~~~~~~~~");
   const subtreeHasEffects =
     (finishedWork.subtreeFlags & MutationMask) !== NoFlags;
   const rootHasEffect = (finishedWork.flags & MutationMask) !== NoFlags;
   // 表示有插入或者更新
   if (subtreeHasEffects || rootHasEffect) {
     commitMutationEffectsOnFiber(finishedWork, root);
+    if (rootDoesHavePassiveEffect) {
+      rootDoesHavePassiveEffect = false;
+      rootWithPendingPassiveEffects = root;
+    }
   }
   root.current = finishedWork;
 }
@@ -111,7 +143,7 @@ function printFinishedWork(fiber) {
       "子节点删除" +
         deletions
           .map((fiber) => `${fiber.type}#${fiber.memoizedProps.id}`)
-          .join(",")
+          .join(","),
     );
   }
   let child = fiber.child;
@@ -124,7 +156,7 @@ function printFinishedWork(fiber) {
       getFlags(fiber),
       getTag(fiber.tag),
       typeof fiber.type === "function" ? fiber.type.name : fiber.type,
-      fiber.memoizedProps
+      fiber.memoizedProps,
     );
   }
 }
@@ -132,7 +164,7 @@ function printFinishedWork(fiber) {
 function getFlags(fiber) {
   const { flags, deletions } = fiber;
   if (flags === (Placement | Update)) {
-    return '移动'
+    return "移动";
   }
   if (flags === Placement) {
     return "插入";

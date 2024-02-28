@@ -1,4 +1,4 @@
-import { MutationMask, Placement, Update } from "./ReactFiberFlags";
+import { MutationMask, Passive, Placement, Update } from "./ReactFiberFlags";
 import {
   FunctionComponent,
   HostComponent,
@@ -11,6 +11,10 @@ import {
   commitUpdate,
   removeChild,
 } from "react-dom-bindings/src/client/ReactDOMHostConfig";
+import {
+  HasEffect as HookHasEffect,
+  Passive as HookPassive,
+} from "./ReactHookEffectTags";
 
 let hostParent = null;
 
@@ -37,7 +41,7 @@ function commitDeletionEffects(root, returnFiber, deletedFiber) {
 function commitDeletionEffectsOnFiber(
   finishedWork,
   nearestMountedAncestor,
-  deletedFiber
+  deletedFiber,
 ) {
   switch (deletedFiber.tag) {
     case HostComponent:
@@ -46,7 +50,7 @@ function commitDeletionEffectsOnFiber(
       recursivelyTraverseDeletionEffects(
         finishedWork,
         nearestMountedAncestor,
-        deletedFiber
+        deletedFiber,
       );
       if (hostParent !== null) {
         removeChild(hostParent, deletedFiber.stateNode);
@@ -61,7 +65,7 @@ function commitDeletionEffectsOnFiber(
 function recursivelyTraverseDeletionEffects(
   finishedRoot,
   nearestMountedAncestor,
-  parent
+  parent,
 ) {
   let child = parent.child;
   while (child !== null) {
@@ -226,5 +230,110 @@ export function commitMutationEffectsOnFiber(finishedWork, root) {
     }
     default:
       break;
+  }
+}
+
+export function commitPassiveUnmountEffects(finishedWork) {
+  commitPassiveUnmountOnFiber(finishedWork);
+}
+function commitPassiveUnmountOnFiber(finishedWork) {
+  const flags = finishedWork.flags;
+  switch (finishedWork.tag) {
+    case HostRoot:
+      recursivelyTraversePassiveUnmountEffects(finishedWork);
+      break;
+    case FunctionComponent: {
+      recursivelyTraversePassiveUnmountEffects(finishedWork);
+      if (flags & Passive) {
+        commitHookPassiveUnmountEffects(
+          finishedWork,
+          HookPassive | HookHasEffect,
+        );
+      }
+    }
+    default:
+      break;
+  }
+}
+function recursivelyTraversePassiveUnmountEffects(parentFiber) {
+  if (parentFiber.subtreeFlags & Passive) {
+    let child = parentFiber.child;
+    while (child !== null) {
+      commitPassiveUnmountOnFiber(child);
+      child = child.sibling;
+    }
+  }
+}
+function commitHookPassiveUnmountEffects(finishedWork, hookFlags) {
+  commitHookEffectListUnmount(hookFlags, finishedWork);
+}
+function commitHookEffectListUnmount(flags, finishedWork) {
+  const updateQueue = finishedWork.updateQueue;
+  const lastEffect = updateQueue !== null ? updateQueue.lastEffect : null;
+  if (lastEffect !== null) {
+    // 最后一个指向的是第一个
+    const firstEffect = lastEffect.next;
+    let effect = firstEffect;
+    do {
+      if ((effect.tag & flags) === flags) {
+        const destory = effect.destory;
+        if (destory !== undefined) {
+          destory();
+        }
+      }
+      effect = effect.next;
+    } while (effect !== firstEffect);
+  }
+}
+export function commitPassiveMountEffects(root, finishedWork) {
+  commitPassiveMountOnFiber(root, finishedWork);
+}
+
+function commitPassiveMountOnFiber(finishedRoot, finishedWork) {
+  const flags = finishedWork.flags;
+  switch (finishedWork.tag) {
+    case HostRoot:
+      recursivelyTraversePassiveMountEffects(finishedRoot, finishedWork);
+      break;
+    case FunctionComponent: {
+      recursivelyTraversePassiveMountEffects(finishedRoot, finishedWork);
+      if (flags & Passive) {
+        commitHookPassiveMountEffects(
+          finishedWork,
+          HookPassive | HookHasEffect,
+        );
+      }
+    }
+
+    default:
+      break;
+  }
+}
+function recursivelyTraversePassiveMountEffects(root, parentFiber) {
+  if (parentFiber.subtreeFlags & Passive) {
+    let child = parentFiber.child;
+    while (child !== null) {
+      commitPassiveMountOnFiber(root, child);
+      child = child.sibling;
+    }
+  }
+}
+function commitHookPassiveMountEffects(finishedWork, hookFlags) {
+  commitHookEffectListMount(hookFlags, finishedWork);
+}
+function commitHookEffectListMount(flags, finishedWork) {
+  const updateQueue = finishedWork.updateQueue;
+  const lastEffect = updateQueue !== null ? updateQueue.lastEffect : null;
+  if (lastEffect !== null) {
+    // 最后一个指向的是第一个
+    const firstEffect = lastEffect.next;
+    let effect = firstEffect;
+    do {
+      if ((effect.tag & flags) === flags) {
+        const create = effect.create;
+        effect.destory = create();
+      }
+      effect = effect.next;
+    } while (effect !== firstEffect);
   }
 }
