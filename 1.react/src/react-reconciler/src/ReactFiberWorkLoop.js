@@ -1,4 +1,8 @@
-import { scheduleCallback } from "scheduler";
+import {
+  scheduleCallback,
+  shouldYield,
+  NormalPriority as NormalSchedulerPriority,
+} from "scheduler";
 import { createWorkInProgress } from "./ReactFiber";
 import { beginWork } from "./ReactFiberBeginWork";
 import { completeWork } from "./ReactFiberCompleteWork";
@@ -36,7 +40,10 @@ let rootWithPendingPassiveEffects = null; // 具有useEffect副作用的根节�
 function ensureRootIsScheduled(root) {
   if (workInProgressRoot) return;
   workInProgressRoot = root;
-  scheduleCallback(performConcurrentWorkOnRoot.bind(null, root));
+  scheduleCallback(
+    NormalSchedulerPriority,
+    performConcurrentWorkOnRoot.bind(null, root)
+  );
 }
 
 export function scheduleUpdateOnFiber(root) {
@@ -46,6 +53,13 @@ export function scheduleUpdateOnFiber(root) {
 function prepareFreshStack(root) {
   workInProgress = createWorkInProgress(root.current, null);
   finishQueueConcurrentUpdates();
+}
+
+// 并发的
+function workLoopConcurrent() {
+  while (workInProgress !== null && !shouldYield()) {
+    performUnitOfWork(workInProgress);
+  }
 }
 
 function workLoopSync() {
@@ -88,7 +102,7 @@ function renderRootSync(root) {
   workLoopSync();
 }
 
-function performConcurrentWorkOnRoot(root) {
+function performConcurrentWorkOnRoot(root, timeout) {
   renderRootSync(root);
   // 开始进入提交阶段
   // 最新构建出来的fiber树
@@ -99,6 +113,7 @@ function performConcurrentWorkOnRoot(root) {
 }
 
 function flushPassiveEffect() {
+  console.log("下一个宏任务");
   if (rootWithPendingPassiveEffects !== null) {
     const root = rootWithPendingPassiveEffects;
     // 执行卸载副作用
@@ -117,7 +132,7 @@ function commitRoot(root) {
     if (!rootDoesHavePassiveEffect) {
       rootDoesHavePassiveEffect = true;
       // 这是个宏任务
-      scheduleCallback(flushPassiveEffect);
+      scheduleCallback(NormalSchedulerPriority, flushPassiveEffect);
     }
   }
   //printFinishedWork(finishedWork);
@@ -148,7 +163,7 @@ function printFinishedWork(fiber) {
       "子节点删除" +
         deletions
           .map((fiber) => `${fiber.type}#${fiber.memoizedProps.id}`)
-          .join(","),
+          .join(",")
     );
   }
   let child = fiber.child;
@@ -161,7 +176,7 @@ function printFinishedWork(fiber) {
       getFlags(fiber),
       getTag(fiber.tag),
       typeof fiber.type === "function" ? fiber.type.name : fiber.type,
-      fiber.memoizedProps,
+      fiber.memoizedProps
     );
   }
 }
