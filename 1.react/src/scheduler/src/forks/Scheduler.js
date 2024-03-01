@@ -28,9 +28,12 @@ var port1 = channel.port1;
 port1.onmessage = performWorkUntilDeadline;
 
 function getCurrentTime() {
+  // 为什么用它呢？
+  // 因为这个performance, 它返回的时间戳没有被限制在1毫秒的精确度内
+  // 可以以浮点数来表示时间，进度最高达到微秒级
   return performance.now();
 }
-export function scheduleCallback(priorityLevel, callback) {
+function scheduleCallback(priorityLevel, callback) {
   const currentTime = getCurrentTime();
   const startTime = currentTime;
   let timeout;
@@ -149,12 +152,12 @@ function performWorkUntilDeadline() {
 }
 
 export {
-  shouldYieldToHost as shouldYield,
-  ImmediatePriority,
-  UserBlockingPriority,
-  NormalPriority,
-  LowPriority,
-  IdlePriority,
+  scheduleCallback as unstable_scheduleCallback,
+  shouldYieldToHost as unstable_shouldYield,
+  ImmediatePriority as unstable_ImmediatePriority,
+  UserBlockingPriority as unstable_UserBlockingPriority,
+  NormalPriority as unstable_NormalPriority,
+  IdlePriority as unstable_IdlePriority
 };
 
 // 最小的单位就是fiber

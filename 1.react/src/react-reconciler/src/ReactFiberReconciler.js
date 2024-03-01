@@ -1,24 +1,26 @@
 import { createFiberRoot } from "./ReactFiberRoot";
 import { createUpdate, enqueueUpdate } from "./ReactFiberClassUpdateQueue";
-import { scheduleUpdateOnFiber } from './ReactFiberWorkLoop'
+import { scheduleUpdateOnFiber, requestUpdateLane } from "./ReactFiberWorkLoop";
 export function createContainer(containerInfo, tag) {
   return createFiberRoot(containerInfo, tag);
 }
 
 /**
- * 
+ *
  * @param {*} element 虚拟DOM
  * @param {*} container 根fiber
  */
 export function updateContainer(element, container) {
   // current 就是HostRootFiber
-  const current = container.current
-  const update = createUpdate()
+  const current = container.current;
+  // 先请求一个更新车道
+  const lane = requestUpdateLane(current);
+  const update = createUpdate(lane);
   update.payload = {
-    element
-  }
-  const root = enqueueUpdate(current, update)
-  if (root !== null){ 
-    scheduleUpdateOnFiber(root)
+    element,
+  };
+  const root = enqueueUpdate(current, update, lane);
+  if (root !== null) {
+    scheduleUpdateOnFiber(root, current, lane);
   }
 }
