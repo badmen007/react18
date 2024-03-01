@@ -1,3 +1,4 @@
+import { mergeLanes } from "./ReactFiberLane";
 import { HostRoot } from "./ReactWorkTags";
 
 let concurrentQueues = [];
@@ -6,21 +7,21 @@ let concurrentQueuesIndex = 0;
 export function finishQueueConcurrentUpdates() {
   const endIndex = concurrentQueuesIndex;
   concurrentQueuesIndex = 0;
-  let i = 0
+  let i = 0;
   while (i < endIndex) {
-    const fiber = concurrentQueues[i++]
-    const queue = concurrentQueues[i++]
-    const update = concurrentQueues[i++]
-    const lane = concurrentQueues[i++]
+    const fiber = concurrentQueues[i++];
+    const queue = concurrentQueues[i++];
+    const update = concurrentQueues[i++];
+    const lane = concurrentQueues[i++];
     if (queue !== null && update !== null) {
-      const pending = queue.pending
+      const pending = queue.pending;
       if (pending == null) {
-        update.next = update
-      }else {
-        update.next = pending.next
-        pending.next = update
+        update.next = update;
+      } else {
+        update.next = pending.next;
+        pending.next = update;
       }
-      queue.pending = update
+      queue.pending = update;
     }
   }
 }
@@ -63,4 +64,6 @@ function enqueueUpdate(fiber, queue, update, lane) {
   concurrentQueues[concurrentQueuesIndex++] = queue;
   concurrentQueues[concurrentQueuesIndex++] = update;
   concurrentQueues[concurrentQueuesIndex++] = lane;
+  // 当我们向fiber添加一个更新的时候 要把此更新的赛道合并到此fiber的赛道上
+  fiber.lanes = mergeLanes(fiber.lanes, lane);
 }

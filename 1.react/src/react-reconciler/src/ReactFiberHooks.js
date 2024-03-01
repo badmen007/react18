@@ -63,7 +63,7 @@ function updateEffectImpl(fiberFlags, hookFlags, create, deps) {
     HookHasEffect | hookFlags,
     create,
     destroy,
-    nextDeps
+    nextDeps,
   );
 }
 function areHookInputsEqual(nextDeps, prevDeps) {
@@ -89,7 +89,7 @@ function mountEffectImpl(fiberFlags, hookFlags, create, deps) {
     HookHasEffect | hookFlags,
     create,
     undefined,
-    nextDeps
+    nextDeps,
   );
 }
 function pushEffect(tag, create, destroy, deps) {
@@ -130,13 +130,19 @@ function baseStateReducer(state, action) {
   return typeof action === "function" ? action(state) : action;
 }
 
-function updateState() {
-  return updateReducer(baseStateReducer);
+function updateState(initialState) {
+  return updateReducer(baseStateReducer, initialState);
 }
 
+/**
+ *
+ * memoizedState:真正显示出来的状态
+ * baseState: 第一个跳过的更新之前的状态
+ * lastRenderedState: 上一个计算的状态
+ */
 function mountState(initialState) {
   const hook = mountWorkInProgressHook();
-  hook.memoizedState = initialState;
+  hook.memoizedState = hook.baseState = initialState;
   const queue = {
     pending: null,
     dispatch: null,
@@ -148,12 +154,13 @@ function mountState(initialState) {
   const dispatch = (queue.dispatch = dispatchSetState.bind(
     null,
     currentlyRenderingFiber,
-    queue
+    queue,
   ));
   return [hook.memoizedState, dispatch];
 }
 
 function dispatchSetState(fiber, queue, action) {
+  debugger;
   // 请求更新赛道
   const lane = requestUpdateLane();
   const update = {
@@ -164,17 +171,18 @@ function dispatchSetState(fiber, queue, action) {
     next: null,
   };
   // 派发送动作之后 ，立即用上一次的状态和上一次的reducer计算新状态
-  const alternate = fiber.alternate
-  // if (
-  //   fiber.lanes == NoLanes &&
-  //   (alternate == null || alternate.lanes == NoLanes)
-  // ) {
-  //   const { lastRenderedReducer, lastRenderedState } = queue;
-  //   const eagerState = lastRenderedReducer(lastRenderedState, action);
-  //   update.hasEagerState = true;
-  //   update.eagerState = eagerState;
-  //   if (Object.is(eagerState, lastRenderedState)) return;
-  // }
+  const alternate = fiber.alternate;
+  // 只有第一次更新才能做这个优化
+  if (
+    fiber.lanes == NoLanes &&
+    (alternate == null || alternate.lanes == NoLanes)
+  ) {
+    const { lastRenderedReducer, lastRenderedState } = queue;
+    const eagerState = lastRenderedReducer(lastRenderedState, action);
+    update.hasEagerState = true;
+    update.eagerState = eagerState;
+    if (Object.is(eagerState, lastRenderedState)) return;
+  }
   const root = enqueueConcurrentHookUpdate(fiber, queue, update, lane);
   scheduleUpdateOnFiber(root, fiber, lane);
 }
@@ -220,11 +228,11 @@ function updateReducer(reducer) {
       } else {
         const action = update.action;
         newState = reducer(newState, action);
-        update = update.next;
       }
+      update = update.next;
     } while (update !== null && update !== firstUpdate);
   }
-  hook.memoizedState = newState;
+  hook.memoizedState = queue.lastRenderedState = newState;
   return [hook.memoizedState, queue.dispatch];
 }
 
@@ -235,13 +243,13 @@ function mountReducer(reducer, initialArg) {
     pending: null,
     dispatch: null,
     lastRenderedReducer: reducer,
-    lastRenderedState: initialArg
+    lastRenderedState: initialArg,
   };
   hook.queue = queue;
   const dispatch = (queue.dispatch = dispatchReducerAction.bind(
     null,
     currentlyRenderingFiber,
-    queue
+    queue,
   ));
   return [hook.memoizedState, dispatch];
 }

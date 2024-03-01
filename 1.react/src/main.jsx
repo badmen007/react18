@@ -2,27 +2,40 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 
 function FunctionComponent() {
-  const [numbers, setNumbers] = React.useState(new Array(20).fill("A"));
-  // const divRef = React.useRef();
-  React.useEffect(() => {
-    setTimeout(() => {
-      // divRef.current.click();
-    }, 10);
-    setNumbers((numbers) => numbers.map((item) => item + "B"));
-  }, []);
+  const [number, setNumber] = React.useState(0);
   return (
     <button
-      // ref={divRef}
       onClick={() => {
-        setNumbers((numbers) => numbers.map((item) => item + "C"));
+        setNumber((number) => number + 1);
+        setNumber((number) => number + 2);
       }}
     >
-      {numbers.map((number, index) => (
-        <span key={index}>{number}</span>
-      ))}
+      {number}
     </button>
   );
 }
+// function FunctionComponent() {
+//   const [numbers, setNumbers] = React.useState(new Array(20).fill("A"));
+//   // const divRef = React.useRef();
+//   React.useEffect(() => {
+//     setTimeout(() => {
+//       // divRef.current.click();
+//     }, 10);
+//     setNumbers((numbers) => numbers.map((item) => item + "B"));
+//   }, []);
+//   return (
+//     <button
+//       // ref={divRef}
+//       onClick={() => {
+//         setNumbers((numbers) => numbers.map((item) => item + "C"));
+//       }}
+//     >
+//       {numbers.map((number, index) => (
+//         <span key={index}>{number}</span>
+//       ))}
+//     </button>
+//   );
+// }
 let element = <FunctionComponent />;
 const root = createRoot(document.getElementById("root"));
 root.render(element);
