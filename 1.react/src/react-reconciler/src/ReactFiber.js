@@ -1,4 +1,5 @@
 import { NoFlags } from "./ReactFiberFlags";
+import { NoLanes } from "./ReactFiberLane";
 import { HostComponent, HostRoot, HostText, IndeterminateComponent } from "./ReactWorkTags";
 
 function FiberNode(tag, pendingProps, key) {
@@ -24,6 +25,8 @@ function FiberNode(tag, pendingProps, key) {
 
   // 存放将要删除的节点
   this.deletions = null
+
+  this.lanes = NoLanes
 }
 
 function createFiber(tag, pendingProps, key) {

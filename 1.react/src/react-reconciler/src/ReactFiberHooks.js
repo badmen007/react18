@@ -1,5 +1,5 @@
 import ReactSharedInternals from "shared/ReactSharedInternals";
-import { scheduleUpdateOnFiber } from "./ReactFiberWorkLoop";
+import { requestUpdateLane, scheduleUpdateOnFiber } from "./ReactFiberWorkLoop";
 import { enqueueConcurrentHookUpdate } from "./ReactFiberConcurrentUpdates";
 import {
   Passive as PassiveEffect,
@@ -10,6 +10,7 @@ import {
   Passive as HookPassive,
   Layout as HookLayout,
 } from "./ReactHookEffectTags";
+import { NoLanes } from "./ReactFiberLane";
 
 const { ReactCurrentDispatcher } = ReactSharedInternals;
 let workInProgressHook = null;
@@ -62,7 +63,7 @@ function updateEffectImpl(fiberFlags, hookFlags, create, deps) {
     HookHasEffect | hookFlags,
     create,
     destroy,
-    nextDeps,
+    nextDeps
   );
 }
 function areHookInputsEqual(nextDeps, prevDeps) {
@@ -88,7 +89,7 @@ function mountEffectImpl(fiberFlags, hookFlags, create, deps) {
     HookHasEffect | hookFlags,
     create,
     undefined,
-    nextDeps,
+    nextDeps
   );
 }
 function pushEffect(tag, create, destroy, deps) {
@@ -147,26 +148,35 @@ function mountState(initialState) {
   const dispatch = (queue.dispatch = dispatchSetState.bind(
     null,
     currentlyRenderingFiber,
-    queue,
+    queue
   ));
   return [hook.memoizedState, dispatch];
 }
 
 function dispatchSetState(fiber, queue, action) {
+  // 请求更新赛道
+  const lane = requestUpdateLane();
   const update = {
+    lane,
     action,
     hasEagerState: false,
     eagerState: null,
     next: null,
   };
   // 派发送动作之后 ，立即用上一次的状态和上一次的reducer计算新状态
-  const { lastRenderedReducer, lastRenderedState } = queue;
-  const eagerState = lastRenderedReducer(lastRenderedState, action);
-  update.hasEagerState = true;
-  update.eagerState = eagerState;
-  if (Object.is(eagerState, lastRenderedState)) return;
-  const root = enqueueConcurrentHookUpdate(fiber, queue, update);
-  scheduleUpdateOnFiber(root);
+  const alternate = fiber.alternate
+  if (
+    fiber.lanes == NoLanes &&
+    (alternate == null || alternate.lanes == NoLanes)
+  ) {
+    const { lastRenderedReducer, lastRenderedState } = queue;
+    const eagerState = lastRenderedReducer(lastRenderedState, action);
+    update.hasEagerState = true;
+    update.eagerState = eagerState;
+    if (Object.is(eagerState, lastRenderedState)) return;
+  }
+  const root = enqueueConcurrentHookUpdate(fiber, queue, update, lane);
+  scheduleUpdateOnFiber(root, fiber, lane);
 }
 /**
  * 构建新的hook
@@ -223,12 +233,15 @@ function mountReducer(reducer, initialArg) {
   hook.memoizedState = initialArg;
   const queue = {
     pending: null,
+    dispatch: null,
+    lastRenderedReducer: reducer,
+    lastRenderedState: initialArg
   };
   hook.queue = queue;
   const dispatch = (queue.dispatch = dispatchReducerAction.bind(
     null,
     currentlyRenderingFiber,
-    queue,
+    queue
   ));
   return [hook.memoizedState, dispatch];
 }

@@ -1,3 +1,5 @@
+import { allowConcurrentByDefault } from "scheduler/src/SchedulerFeatureFlags";
+
 export const TotalLanes = 31;
 
 export const NoLanes = 0b0000000000000000000000000000000;
@@ -55,4 +57,12 @@ export function isSubsetOfLanes(set, subset) {
 
 export function mergeLanes(a, b) {
   return a | b;
+}
+
+export function includesBlockingLane(root, lanes) {
+  if (allowConcurrentByDefault) {
+    return false
+  }
+  const SyncDefaultLanes = InputContinuousLane | DefaultLane
+  return (lanes & SyncDefaultLanes) !== NoLane
 }

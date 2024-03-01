@@ -1,7 +1,8 @@
 import { getEventTarget } from "./getEventTarget";
 import { getClosestInstanceFromNode } from "../client/ReactDOMComponentTree";
 import { dispatchEventForPluginEventSystem } from './DOMPluginEventSystem'
-import { ContinuousEventPriority, DefaultEventPriority, DiscreteEventPriority } from "react-reconciler/src/ReactEventPriorities";
+import { ContinuousEventPriority, DefaultEventPriority, DiscreteEventPriority, setCurrentUpdatePriority } from "react-reconciler/src/ReactEventPriorities";
+import { getCurrentEventPriority } from "../client/ReactDOMHostConfig";
 export function createEventListenerWrapperWithPriority(
   targetContainer,
   domEventName,
@@ -29,7 +30,15 @@ function dispatchDiscreteEvent(
   container,
   nativeEvent
 ) {
-  dispatchEvent(domEventName, eventSystemFlags, container, nativeEvent);
+  // 获取当前老的优先级
+  const previousPriority = getCurrentEventPriority()
+  try {
+    // 设置优先级为离散事件优先级
+    setCurrentUpdatePriority(DiscreteEventPriority)
+    dispatchEvent(domEventName, eventSystemFlags, container, nativeEvent);
+  } finally {
+    setCurrentUpdatePriority(previousPriority);
+  }
 }
 
 /**
