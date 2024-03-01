@@ -165,16 +165,16 @@ function dispatchSetState(fiber, queue, action) {
   };
   // 派发送动作之后 ，立即用上一次的状态和上一次的reducer计算新状态
   const alternate = fiber.alternate
-  if (
-    fiber.lanes == NoLanes &&
-    (alternate == null || alternate.lanes == NoLanes)
-  ) {
-    const { lastRenderedReducer, lastRenderedState } = queue;
-    const eagerState = lastRenderedReducer(lastRenderedState, action);
-    update.hasEagerState = true;
-    update.eagerState = eagerState;
-    if (Object.is(eagerState, lastRenderedState)) return;
-  }
+  // if (
+  //   fiber.lanes == NoLanes &&
+  //   (alternate == null || alternate.lanes == NoLanes)
+  // ) {
+  //   const { lastRenderedReducer, lastRenderedState } = queue;
+  //   const eagerState = lastRenderedReducer(lastRenderedState, action);
+  //   update.hasEagerState = true;
+  //   update.eagerState = eagerState;
+  //   if (Object.is(eagerState, lastRenderedState)) return;
+  // }
   const root = enqueueConcurrentHookUpdate(fiber, queue, update, lane);
   scheduleUpdateOnFiber(root, fiber, lane);
 }

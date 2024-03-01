@@ -5,6 +5,7 @@ import {
   ImmediatePriority as ImmediateSchedulerPriority,
   UserBlockingPriority as UserBlockingSchedulerPriority,
   IdlePriority as IdleSchedulerPriority,
+  cancelCallback as Scheduler_cancelCallback,
 } from "./Scheduler";
 import { createWorkInProgress } from "./ReactFiber";
 import { beginWork } from "./ReactFiberBeginWork";
@@ -68,11 +69,22 @@ let rootWithPendingPassiveEffects = null; // 具有useEffect副作用的根节�
 let workInProgressRootRenderLanes = NoLanes;
 
 function ensureRootIsScheduled(root) {
-  const nextLanes = getNextLanes(root, NoLane);
+  // 获取当前根上执行的任务
+  const existingCallbackNode = root.callbackNode
+  const nextLanes = getNextLanes(root, workInProgressRootRenderLanes);
   if (nextLanes == NoLanes) {
     return;
   }
   let newCallbackPriority = getHighestPriorityLane(nextLanes);
+  const existingCallbackPriority = root.callbackPriority
+  // 批量更新
+  if (existingCallbackPriority == newCallbackPriority) {
+    return
+  }
+  if (existingCallbackNode !== null) {
+    console.log('cancel')
+    Scheduler_cancelCallback(existingCallbackNode);
+  }
   let newCallbackNode;
   if (newCallbackPriority === SyncLane) {
     // 如果是个同步的赛道的话，添加到同步的队列中
@@ -106,6 +118,7 @@ function ensureRootIsScheduled(root) {
     );
   }
   root.callbackNode = newCallbackNode;
+  root.callbackPriority = newCallbackPriority
 }
 
 function performSyncWorkOnRoot(root) {
@@ -116,7 +129,7 @@ function performSyncWorkOnRoot(root) {
   // 新渲染完成的fiber根节点
   const finishedWork = root.current.alternate;
   root.finishedWork = finishedWork;
-  commitRoot();
+  commitRoot(root);
   return null;
 }
 
@@ -136,9 +149,8 @@ function prepareFreshStack(root, renderLanes) {
 // 并发的
 function workLoopConcurrent() {
   while (workInProgress !== null && !shouldYield()) {
-    sleep(6);
+    sleep(100);
     performUnitOfWork(workInProgress);
-    console.log("shouldYield", shouldYield(), workInProgress);
   }
 }
 
@@ -190,10 +202,10 @@ function renderRootSync(root, renderLanes) {
     prepareFreshStack(root, renderLanes);
   }
   workLoopSync();
+  return RootCompleted
 }
 
 function performConcurrentWorkOnRoot(root, didTimeout) {
-  console.log("performConcurrentWorkOnRoot");
   // 先获取当前根节点上的任务
   const originalCallbackNode = root.callbackNode;
   // 没有要渲染的任务
@@ -204,7 +216,6 @@ function performConcurrentWorkOnRoot(root, didTimeout) {
   // 如果不包含阻塞的赛道， 并且没有超时 就可以并行渲染 启用时间分片
   // 默认车道是同步的 不能启用时间分片
   const shouldTimeSlice = !includesBlockingLane(root, lanes) && !didTimeout;
-  console.log("shouldTimeSlice", shouldTimeSlice);
   const exitStatus = shouldTimeSlice
     ? renderRootConcurrent(root, lanes)
     : renderRootSync(root, lanes);
@@ -258,8 +269,9 @@ function commitRoot(root) {
 function commitRootImpl(root) {
   const { finishedWork } = root;
   workInProgressRoot = null;
-  workInProgressRootRenderLanes = null;
+  workInProgressRootRenderLanes = NoLanes;
   root.callbackNode = null;
+  root.callbackPriority = NoLane
   if (
     (finishedWork.subtreeFlags & Passive) !== NoFlags ||
     (finishedWork.flags & Passive) !== NoFlags
@@ -288,6 +300,8 @@ function commitRootImpl(root) {
     }
   }
   root.current = finishedWork;
+  // 前面有取消的任务
+  // ensureRootIsScheduled(root)
 }
 
 export function requestUpdateLane() {

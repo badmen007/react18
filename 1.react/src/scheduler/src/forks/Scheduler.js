@@ -65,7 +65,7 @@ function scheduleCallback(priorityLevel, callback) {
     sortIndex: -1, // 排序依据
   };
   // 排序的依据是过期时间
-  newTask.sortIndex = expirationTime
+  newTask.sortIndex = expirationTime;
   push(taskQueue, newTask);
   requestHostCallback(flushWork);
   return newTask;
@@ -98,7 +98,7 @@ function workLoop(startTime) {
     const callback = currentTask.callback;
     if (typeof callback === "function") {
       currentTask.callback = null;
-      const didUserCallbackTimeout = currentTask.expirationTime <= currentTime
+      const didUserCallbackTimeout = currentTask.expirationTime <= currentTime;
       const continuationCallback = callback(didUserCallbackTimeout);
       // 如果返回了新的函数 表示当前的工作还没有完成
       if (typeof continuationCallback == "function") {
@@ -151,13 +151,18 @@ function performWorkUntilDeadline() {
   }
 }
 
+function unstable_cancelCallback(task) {
+  task.callback = null
+}
+
 export {
   scheduleCallback as unstable_scheduleCallback,
   shouldYieldToHost as unstable_shouldYield,
+  unstable_cancelCallback,
   ImmediatePriority as unstable_ImmediatePriority,
   UserBlockingPriority as unstable_UserBlockingPriority,
   NormalPriority as unstable_NormalPriority,
-  IdlePriority as unstable_IdlePriority
+  IdlePriority as unstable_IdlePriority,
 };
 
 // 最小的单位就是fiber
