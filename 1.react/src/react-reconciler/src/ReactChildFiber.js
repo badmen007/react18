@@ -54,6 +54,7 @@ function createChildReconciler(shouldTrackSideEffects) {
           // 就是说原来可能有多个，现在就一个
           deleteRemainingChildren(returnFiber, child.sibling);
           const existing = useFiber(child, element.props);
+          existing.ref = element.ref;
           existing.return = returnFiber;
           return existing;
         } else {
@@ -68,6 +69,7 @@ function createChildReconciler(shouldTrackSideEffects) {
     // 没有老的节点
     const created = createFiberFromElement(element);
     created.return = returnFiber;
+    created.ref = element.ref;
     return created;
   }
   function PlaceSingleChild(newFiber) {
@@ -91,6 +93,7 @@ function createChildReconciler(shouldTrackSideEffects) {
         case REACT_ELEMENT_TYPE:
           const created = createFiberFromElement(newChild);
           created.return = returnFiber;
+          created.ref = newChild.ref;
           return created;
         default:
           break;
@@ -123,12 +126,14 @@ function createChildReconciler(shouldTrackSideEffects) {
       if (current.type === elementType) {
         const existing = useFiber(current, element.props);
         existing.return = returnFiber;
+        existing.ref = element.ref;
         return existing;
       }
     }
     // 创建新的
     const created = createFiberFromElement(element);
     created.return = returnFiber;
+    created.ref = element.ref;
     return created;
   }
   function updateSlot(returnFiber, oldFiber, newChild) {
@@ -227,7 +232,7 @@ function createChildReconciler(shouldTrackSideEffects) {
       deleteRemainingChildren(returnFiber, oldFiber);
       return resultingFirstChild;
     }
-    
+
     // 老的fiber没了 新的还有 创建fiber然后插入
     if (oldFiber == null) {
       for (; newIndex < newChildren.length; newIndex++) {

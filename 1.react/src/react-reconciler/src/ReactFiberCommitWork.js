@@ -3,6 +3,7 @@ import {
   MutationMask,
   Passive,
   Placement,
+  Ref,
   Update,
 } from "./ReactFiberFlags";
 import {
@@ -226,6 +227,9 @@ export function commitMutationEffectsOnFiber(finishedWork, root) {
       // 遍历子节点 处理他们节点上的副作用
       recursivelyTraverseMutationEffects(root, finishedWork);
       commitReconciliationEffects(finishedWork);
+      if (flags & Ref) {
+        commitAttachRef(finishedWork);
+      }
       // 处理DOM更新
       if (flags & Update) {
         const instance = finishedWork.stateNode;
@@ -244,6 +248,18 @@ export function commitMutationEffectsOnFiber(finishedWork, root) {
     }
     default:
       break;
+  }
+}
+
+function commitAttachRef(finishedWork) {
+  const ref = finishedWork.ref;
+  if (ref !== null) {
+    const instance = finishedWork.stateNode;
+    if (typeof ref === "function") {
+      ref(instance);
+    } else {
+      ref.current = instance;
+    }
   }
 }
 

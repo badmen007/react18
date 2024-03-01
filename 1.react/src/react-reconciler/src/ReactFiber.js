@@ -1,6 +1,11 @@
 import { NoFlags } from "./ReactFiberFlags";
 import { NoLanes } from "./ReactFiberLane";
-import { HostComponent, HostRoot, HostText, IndeterminateComponent } from "./ReactWorkTags";
+import {
+  HostComponent,
+  HostRoot,
+  HostText,
+  IndeterminateComponent,
+} from "./ReactWorkTags";
 
 function FiberNode(tag, pendingProps, key) {
   this.tag = tag;
@@ -24,9 +29,10 @@ function FiberNode(tag, pendingProps, key) {
   this.alternate = null;
 
   // 存放将要删除的节点
-  this.deletions = null
+  this.deletions = null;
 
-  this.lanes = NoLanes
+  this.lanes = NoLanes;
+  this.ref = null;
 }
 
 function createFiber(tag, pendingProps, key) {
@@ -44,7 +50,7 @@ export function createWorkInProgress(current, pendingProps) {
       current.tag,
       pendingProps,
       current.key,
-      current.mode
+      current.mode,
     );
     workInProgress.elementType = current.elementType;
     workInProgress.type = current.type;
@@ -63,6 +69,7 @@ export function createWorkInProgress(current, pendingProps) {
   workInProgress.updateQueue = current.updateQueue;
   workInProgress.sibling = current.sibling;
   workInProgress.index = current.index;
+  workInProgress.ref = current.ref;
 
   return workInProgress;
 }
@@ -70,28 +77,27 @@ export function createWorkInProgress(current, pendingProps) {
 function createFiberFromTypeAndProps(type, key, pendingProps) {
   // 相当于默认值
   let fiberTag = IndeterminateComponent;
-  if (type == 'function') {
-
-  } else if (typeof type === 'string'){
-    fiberTag = HostComponent
+  if (type == "function") {
+  } else if (typeof type === "string") {
+    fiberTag = HostComponent;
   }
   const fiber = createFiber(fiberTag, pendingProps, key);
-  fiber.type = type
-  return fiber
+  fiber.type = type;
+  return fiber;
 }
-
 
 /**
  * 根据虚拟DOM创建fiber
  * @param {*} element 虚拟DOM元素
  */
 export function createFiberFromElement(element) {
-  const { type, key, props:pendingProps } = element;
+  const { type, key, props: pendingProps } = element;
   const fiber = createFiberFromTypeAndProps(type, key, pendingProps);
   return fiber;
 }
 
 export function createFiberFromText(content) {
-  const fiber = createFiber(HostText, content, null)
-  return fiber
+  const fiber = createFiber(HostText, content, null);
+  return fiber;
 }
+

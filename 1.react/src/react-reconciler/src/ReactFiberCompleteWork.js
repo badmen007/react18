@@ -1,4 +1,3 @@
-import logger, { indent } from "scheduler/logger";
 import {
   FunctionComponent,
   HostComponent,
@@ -12,7 +11,11 @@ import {
   finalizeInitialChildren,
   prepareUpdate,
 } from "react-dom-bindings/src/client/ReactDOMHostConfig";
-import { NoFlags, Update } from "./ReactFiberFlags";
+import { NoFlags, Ref, Update } from "./ReactFiberFlags";
+
+function markRef(workInProgress) {
+  workInProgress.flags |= Ref;
+}
 
 function appendAllChildren(parent, workInProgress) {
   let node = workInProgress.child;
@@ -69,6 +72,9 @@ export function completeWork(current, workInProgress) {
       if (current !== null && workInProgress.stateNode !== null) {
         // 更新
         updateHostComponent(current, workInProgress, type, newProps);
+        if (current.ref !== workInProgress.ref) {
+          markRef(workInProgress);
+        }
       } else {
         // 创建
         const instance = createInstance(type, newProps, workInProgress);
@@ -76,6 +82,9 @@ export function completeWork(current, workInProgress) {
         appendAllChildren(instance, workInProgress);
         workInProgress.stateNode = instance;
         finalizeInitialChildren(instance, type, newProps);
+        if (workInProgress.ref !== null) {
+          markRef(workInProgress);
+        }
       }
       // 向上冒泡
       bubbleProperties(workInProgress);

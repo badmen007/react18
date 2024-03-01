@@ -3,11 +3,15 @@ import { createRoot } from "react-dom/client";
 
 function FunctionComponent() {
   const [number, setNumber] = React.useState(0);
+  const buttonRef = React.useRef();
+  React.useEffect(() => {
+    console.log(buttonRef.current);
+  }, []);
   return (
     <button
+      ref={buttonRef}
       onClick={() => {
         setNumber((number) => number + 1);
-        setNumber((number) => number + 2);
       }}
     >
       {number}

@@ -22,13 +22,29 @@ const HooksDispatcherOnMount = {
   useState: mountState,
   useEffect: mountEffect,
   useLayoutEffect: mountLayoutEffect,
+  useRef: mountRef,
 };
 const HooksDispatcherOnUpdate = {
   useReducer: updateReducer,
   useState: updateState,
   useEffect: updateEffect,
   useLayoutEffect: updateLayoutEffect,
+  useRef: updateRef,
 };
+
+function mountRef(initialValue) {
+  const hook = mountWorkInProgressHook();
+  const ref = {
+    current: initialValue,
+  };
+  hook.memoizedState = ref;
+  return ref;
+}
+
+function updateRef() {
+  const hook = updateWorkInProgressHook();
+  return hook.memoizedState;
+}
 
 function updateLayoutEffect(create, deps) {
   return updateEffectImpl(UpdateEffect, HookLayout, create, deps);
@@ -160,7 +176,6 @@ function mountState(initialState) {
 }
 
 function dispatchSetState(fiber, queue, action) {
-  debugger;
   // 请求更新赛道
   const lane = requestUpdateLane();
   const update = {
