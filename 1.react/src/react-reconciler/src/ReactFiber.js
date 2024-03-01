@@ -32,6 +32,7 @@ function FiberNode(tag, pendingProps, key) {
   this.deletions = null;
 
   this.lanes = NoLanes;
+  this.childLanes = NoLanes;
   this.ref = null;
 }
 
@@ -50,7 +51,7 @@ export function createWorkInProgress(current, pendingProps) {
       current.tag,
       pendingProps,
       current.key,
-      current.mode,
+      current.mode
     );
     workInProgress.elementType = current.elementType;
     workInProgress.type = current.type;
@@ -70,7 +71,10 @@ export function createWorkInProgress(current, pendingProps) {
   workInProgress.sibling = current.sibling;
   workInProgress.index = current.index;
   workInProgress.ref = current.ref;
-
+  workInProgress.flags = current.flags;
+  workInProgress.lanes = current.lanes;
+  workInProgress.childLanes = current.childLanes;
+  
   return workInProgress;
 }
 
@@ -100,4 +104,3 @@ export function createFiberFromText(content) {
   const fiber = createFiber(HostText, content, null);
   return fiber;
 }
-

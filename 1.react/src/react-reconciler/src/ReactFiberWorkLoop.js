@@ -6,30 +6,18 @@ import {
   UserBlockingPriority as UserBlockingSchedulerPriority,
   IdlePriority as IdleSchedulerPriority,
   cancelCallback as Scheduler_cancelCallback,
+  now,
 } from "./Scheduler";
 import { createWorkInProgress } from "./ReactFiber";
 import { beginWork } from "./ReactFiberBeginWork";
 import { completeWork } from "./ReactFiberCompleteWork";
-import {
-  ChildDeletion,
-  MutationMask,
-  NoFlags,
-  Passive,
-  Placement,
-  Update,
-} from "./ReactFiberFlags";
+import { MutationMask, NoFlags, Passive } from "./ReactFiberFlags";
 import {
   commitMutationEffectsOnFiber,
   commitPassiveUnmountEffects,
   commitPassiveMountEffects,
   commitLayoutEffect,
 } from "./ReactFiberCommitWork";
-import {
-  FunctionComponent,
-  HostComponent,
-  HostRoot,
-  HostText,
-} from "./ReactWorkTags";
 import { finishQueueConcurrentUpdates } from "./ReactFiberConcurrentUpdates";
 import {
   NoLane,
@@ -39,6 +27,11 @@ import {
   getHighestPriorityLane,
   SyncLane,
   includesBlockingLane,
+  markStarvedLanesAsExpired,
+  NoTimestamp,
+  includesExpiredLane,
+  markRootFinished,
+  mergeLanes,
 } from "./ReactFiberLane";
 import {
   ContinuousEventPriority,
@@ -67,22 +60,26 @@ let workInProgress = null;
 let rootDoesHavePassiveEffect = false; // 有没有副作用
 let rootWithPendingPassiveEffects = null; // 具有useEffect副作用的根节点 FiberRootNode
 let workInProgressRootRenderLanes = NoLanes;
+let currentEventTime = NoTimestamp;
 
-function ensureRootIsScheduled(root) {
+function ensureRootIsScheduled(root, currentTime) {
   // 获取当前根上执行的任务
-  const existingCallbackNode = root.callbackNode
+  const existingCallbackNode = root.callbackNode;
+  // 把饿死的赛道标记过期
+  markStarvedLanesAsExpired(root, currentTime);
+
   const nextLanes = getNextLanes(root, workInProgressRootRenderLanes);
   if (nextLanes == NoLanes) {
     return;
   }
   let newCallbackPriority = getHighestPriorityLane(nextLanes);
-  const existingCallbackPriority = root.callbackPriority
+  const existingCallbackPriority = root.callbackPriority;
   // 批量更新
   if (existingCallbackPriority == newCallbackPriority) {
-    return
+    return;
   }
   if (existingCallbackNode !== null) {
-    console.log('cancel')
+    console.log("cancelCallback");
     Scheduler_cancelCallback(existingCallbackNode);
   }
   let newCallbackNode;
@@ -114,11 +111,11 @@ function ensureRootIsScheduled(root) {
     }
     newCallbackNode = Scheduler_scheduleCallback(
       schedulerPriorityLevel,
-      performConcurrentWorkOnRoot.bind(null, root)
+      performConcurrentWorkOnRoot.bind(null, root),
     );
   }
   root.callbackNode = newCallbackNode;
-  root.callbackPriority = newCallbackPriority
+  root.callbackPriority = newCallbackPriority;
 }
 
 function performSyncWorkOnRoot(root) {
@@ -133,9 +130,9 @@ function performSyncWorkOnRoot(root) {
   return null;
 }
 
-export function scheduleUpdateOnFiber(root, fiber, lane) {
+export function scheduleUpdateOnFiber(root, fiber, lane, eventTime) {
   markRootUpdated(root, lane);
-  ensureRootIsScheduled(root);
+  ensureRootIsScheduled(root, eventTime);
 }
 
 // 创建新的workInProgress
@@ -149,7 +146,7 @@ function prepareFreshStack(root, renderLanes) {
 // 并发的
 function workLoopConcurrent() {
   while (workInProgress !== null && !shouldYield()) {
-    sleep(100);
+    sleep(5);
     performUnitOfWork(workInProgress);
   }
 }
@@ -202,7 +199,7 @@ function renderRootSync(root, renderLanes) {
     prepareFreshStack(root, renderLanes);
   }
   workLoopSync();
-  return RootCompleted
+  return RootCompleted;
 }
 
 function performConcurrentWorkOnRoot(root, didTimeout) {
@@ -213,9 +210,15 @@ function performConcurrentWorkOnRoot(root, didTimeout) {
   if (lanes == NoLanes) {
     return null;
   }
-  // 如果不包含阻塞的赛道， 并且没有超时 就可以并行渲染 启用时间分片
-  // 默认车道是同步的 不能启用时间分片
-  const shouldTimeSlice = !includesBlockingLane(root, lanes) && !didTimeout;
+  // 不包含阻塞的车道
+  const nonIncludesBlockingLane = !includesBlockingLane(root, lanes);
+  // 不包含过期的车道
+  const nonIncludesExpiredLane = !includesExpiredLane(root, lanes);
+  // 事件片没有过期
+  const nonTimeout = !didTimeout;
+  const shouldTimeSlice =
+    nonIncludesBlockingLane && nonIncludesExpiredLane && nonTimeout;
+
   const exitStatus = shouldTimeSlice
     ? renderRootConcurrent(root, lanes)
     : renderRootSync(root, lanes);
@@ -246,7 +249,6 @@ function renderRootConcurrent(root, lanes) {
 }
 
 function flushPassiveEffect() {
-  console.log("下一个宏任务");
   if (rootWithPendingPassiveEffects !== null) {
     const root = rootWithPendingPassiveEffects;
     // 执行卸载副作用
@@ -268,10 +270,17 @@ function commitRoot(root) {
 
 function commitRootImpl(root) {
   const { finishedWork } = root;
+  console.log("commit", finishedWork.child.memoizedState.memoizedState[0]);
   workInProgressRoot = null;
   workInProgressRootRenderLanes = NoLanes;
   root.callbackNode = null;
-  root.callbackPriority = NoLane
+  root.callbackPriority = NoLane;
+
+  const remainingLanes = mergeLanes(
+    finishedWork.lanes,
+    finishedWork.childLanes,
+  );
+  markRootFinished(root, remainingLanes);
   if (
     (finishedWork.subtreeFlags & Passive) !== NoFlags ||
     (finishedWork.flags & Passive) !== NoFlags
@@ -283,16 +292,13 @@ function commitRootImpl(root) {
     }
   }
   //printFinishedWork(finishedWork);
-  console.log("开始commit~~~~~~~~~~~~~~~~~~~~~");
   const subtreeHasEffects =
     (finishedWork.subtreeFlags & MutationMask) !== NoFlags;
   const rootHasEffect = (finishedWork.flags & MutationMask) !== NoFlags;
   // 表示有插入或者更新
   if (subtreeHasEffects || rootHasEffect) {
     // dom变更之后 ui渲染之前
-    console.log("DOM变更commitMutationEffectsOnFiber~~~~~~");
     commitMutationEffectsOnFiber(finishedWork, root);
-    console.log("DOM变更后执行commitLayoutEffect~~~~~~");
     commitLayoutEffect(finishedWork, root);
     if (rootDoesHavePassiveEffect) {
       rootDoesHavePassiveEffect = false;
@@ -300,8 +306,8 @@ function commitRootImpl(root) {
     }
   }
   root.current = finishedWork;
-  // 前面有取消的任务
-  // ensureRootIsScheduled(root)
+  // 前面有取消的任务 根上可能有跳过的更新 需要重新再次调度
+  ensureRootIsScheduled(root, now());
 }
 
 export function requestUpdateLane() {
@@ -321,4 +327,10 @@ function sleep(duration) {
       return;
     }
   }
+}
+
+// 返回当前的时间
+export function requestEventTime() {
+  currentEventTime = now();
+  return currentEventTime;
 }

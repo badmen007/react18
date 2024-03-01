@@ -1,5 +1,9 @@
 import ReactSharedInternals from "shared/ReactSharedInternals";
-import { requestUpdateLane, scheduleUpdateOnFiber } from "./ReactFiberWorkLoop";
+import {
+  requestEventTime,
+  requestUpdateLane,
+  scheduleUpdateOnFiber,
+} from "./ReactFiberWorkLoop";
 import { enqueueConcurrentHookUpdate } from "./ReactFiberConcurrentUpdates";
 import {
   Passive as PassiveEffect,
@@ -10,12 +14,13 @@ import {
   Passive as HookPassive,
   Layout as HookLayout,
 } from "./ReactHookEffectTags";
-import { NoLanes } from "./ReactFiberLane";
+import { NoLane, NoLanes, isSubsetOfLanes } from "./ReactFiberLane";
 
 const { ReactCurrentDispatcher } = ReactSharedInternals;
 let workInProgressHook = null;
 let currentlyRenderingFiber = null;
 let currentHook = null;
+let renderLanes = NoLanes;
 
 const HooksDispatcherOnMount = {
   useReducer: mountReducer,
@@ -199,7 +204,8 @@ function dispatchSetState(fiber, queue, action) {
     if (Object.is(eagerState, lastRenderedState)) return;
   }
   const root = enqueueConcurrentHookUpdate(fiber, queue, update, lane);
-  scheduleUpdateOnFiber(root, fiber, lane);
+  const eventTime = requestEventTime();
+  scheduleUpdateOnFiber(root, fiber, lane, eventTime);
 }
 /**
  * 构建新的hook
@@ -215,6 +221,8 @@ function updateWorkInProgressHook() {
     memoizedState: currentHook.memoizedState,
     queue: currentHook.queue,
     next: null,
+    baseState: currentHook.baseState,
+    baseQueue: currentHook.baseQueue,
   };
   if (workInProgressHook == null) {
     currentlyRenderingFiber.memoizedState = workInProgressHook = newHook;
@@ -225,30 +233,86 @@ function updateWorkInProgressHook() {
 }
 
 function updateReducer(reducer) {
-  // 获取新的hook
   const hook = updateWorkInProgressHook();
-  // 获取新的hook的更新队列
   const queue = hook.queue;
-  // 获取老的hook
+  queue.lastRenderedReducer = reducer;
   const current = currentHook;
+  let baseQueue = current.baseQueue;
   const pendingQueue = queue.pending;
-  let newState = current.memoizedState;
   if (pendingQueue !== null) {
+    if (baseQueue !== null) {
+      const baseFirst = baseQueue.next;
+      const pendingFirst = pendingQueue.next;
+      baseQueue.next = pendingFirst;
+      pendingQueue.next = baseFirst;
+    }
+    current.baseQueue = baseQueue = pendingQueue;
     queue.pending = null;
-    const firstUpdate = pendingQueue.next;
-    let update = firstUpdate;
+  }
+  if (baseQueue !== null) {
+    printQueue(baseQueue);
+    const first = baseQueue.next;
+    let newState = current.baseState;
+    let newBaseState = null;
+    let newBaseQueueFirst = null;
+    let newBaseQueueLast = null;
+    let update = first;
     do {
-      if (update.hasEagerState) {
-        newState = update.eagerState;
+      const updateLane = update.lane;
+      const shouldSkipUpdate = !isSubsetOfLanes(renderLanes, updateLane);
+      if (shouldSkipUpdate) {
+        const clone = {
+          lane: updateLane,
+          action: update.action,
+          hasEagerState: update.hasEagerState,
+          eagerState: update.eagerState,
+          next: null,
+        };
+        if (newBaseQueueLast === null) {
+          newBaseQueueFirst = newBaseQueueLast = clone;
+          newBaseState = newState;
+        } else {
+          newBaseQueueLast = newBaseQueueLast.next = clone;
+        }
+        currentlyRenderingFiber.lanes = mergeLanes(
+          currentlyRenderingFiber.lanes,
+          updateLane,
+        );
       } else {
-        const action = update.action;
-        newState = reducer(newState, action);
+        if (newBaseQueueLast !== null) {
+          const clone = {
+            lane: NoLane,
+            action: update.action,
+            hasEagerState: update.hasEagerState,
+            eagerState: update.eagerState,
+            next: null,
+          };
+          newBaseQueueLast = newBaseQueueLast.next = clone;
+        }
+        if (update.hasEagerState) {
+          newState = update.eagerState;
+        } else {
+          const action = update.action;
+          newState = reducer(newState, action);
+        }
       }
       update = update.next;
-    } while (update !== null && update !== firstUpdate);
+    } while (update !== null && update !== first);
+    if (newBaseQueueLast === null) {
+      newBaseState = newState;
+    } else {
+      newBaseQueueLast.next = newBaseQueueFirst;
+    }
+    hook.memoizedState = newState;
+    hook.baseState = newBaseState;
+    hook.baseQueue = newBaseQueueLast;
+    queue.lastRenderedState = newState;
   }
-  hook.memoizedState = queue.lastRenderedState = newState;
-  return [hook.memoizedState, queue.dispatch];
+  if (baseQueue === null) {
+    queue.lanes = NoLanes;
+  }
+  const dispatch = queue.dispatch;
+  return [hook.memoizedState, dispatch];
 }
 
 function mountReducer(reducer, initialArg) {
@@ -281,7 +345,8 @@ function dispatchReducerAction(fiber, queue, action) {
     next: null,
   };
   const root = enqueueConcurrentHookUpdate(fiber, queue, update);
-  scheduleUpdateOnFiber(root);
+  const eventTime = requestEventTime();
+  scheduleUpdateOnFiber(root, fiber, lane, eventTime);
 }
 
 function mountWorkInProgressHook() {
@@ -289,6 +354,8 @@ function mountWorkInProgressHook() {
     memoizedState: null,
     queue: null, // 存放本hook的更新队列
     next: null, // 指向下一个hook
+    baseState: null, // 第一个跳过的更新之前的状态
+    baseQueue: null, // 跳过的更新的链表
   };
   if (workInProgressHook == null) {
     currentlyRenderingFiber.memoizedState = workInProgressHook = hook;
@@ -305,10 +372,18 @@ function mountWorkInProgressHook() {
  * @param {*} Component
  * @param {*} props
  */
-export function renderWithHooks(current, workInProgress, Component, props) {
+export function renderWithHooks(
+  current,
+  workInProgress,
+  Component,
+  props,
+  nextRenderLanes,
+) {
+  renderLanes = nextRenderLanes;
   currentlyRenderingFiber = workInProgress;
   // 每次清除updateQueue
   currentlyRenderingFiber.updateQueue = null;
+  workInProgress.memoizedState = null;
   if (current !== null && current.memoizedState !== null) {
     ReactCurrentDispatcher.current = HooksDispatcherOnUpdate;
   } else {
@@ -318,5 +393,18 @@ export function renderWithHooks(current, workInProgress, Component, props) {
   currentlyRenderingFiber = null;
   workInProgressHook = null;
   currentHook = null;
+  renderLanes = NoLanes;
   return children;
+}
+
+function printQueue(queue) {
+  const first = queue.next;
+  let desc = "";
+  let update = first;
+  do {
+    desc += "=>" + update.action.id;
+    update = update.next;
+  } while (update !== null && update !== first);
+  desc += "=>null";
+  console.log(desc);
 }

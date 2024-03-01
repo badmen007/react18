@@ -80,21 +80,23 @@ export function updateFunctionComponent(
   current,
   workInProgress,
   Component,
-  nextProps
+  nextProps,
+  renderLanes
 ) {
   const nextChildren = renderWithHooks(
     current,
     workInProgress,
     Component,
-    nextProps
+    nextProps,
+    renderLanes
   );
   reconcileChildren(current, workInProgress, nextChildren);
   return workInProgress.child;
 }
 
 export function beginWork(current, workInProgress, renderLanes) {
-  // logger(" ".repeat(indent.number) + "beginWork", workInProgress);
-  // indent.number += 2
+  workInProgress.lanes = 0
+
   switch (workInProgress.tag) {
     case IndeterminateComponent:
       return mountIndeterminateComponent(

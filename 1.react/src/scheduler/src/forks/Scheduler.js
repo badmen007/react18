@@ -163,6 +163,7 @@ export {
   UserBlockingPriority as unstable_UserBlockingPriority,
   NormalPriority as unstable_NormalPriority,
   IdlePriority as unstable_IdlePriority,
+  getCurrentTime as now
 };
 
 // 最小的单位就是fiber

@@ -12,6 +12,7 @@ import {
   prepareUpdate,
 } from "react-dom-bindings/src/client/ReactDOMHostConfig";
 import { NoFlags, Ref, Update } from "./ReactFiberFlags";
+import { NoLanes, mergeLanes } from "./ReactFiberLane";
 
 function markRef(workInProgress) {
   workInProgress.flags |= Ref;
@@ -105,12 +106,18 @@ export function completeWork(current, workInProgress) {
 
 function bubbleProperties(completedWork) {
   // 合并副作用
+  let newChildLanes = NoLanes;
   let subtreeFlags = NoFlags;
   let child = completedWork.child;
   while (child !== null) {
+    newChildLanes = mergeLanes(
+      newChildLanes,
+      mergeLanes(child.lanes, child.childLanes),
+    );
     subtreeFlags |= child.subtreeFlags;
     subtreeFlags |= child.flags;
     child = child.sibling;
   }
+  completedWork.childLanes = newChildLanes;
   completedWork.subtreeFlags = subtreeFlags;
 }
